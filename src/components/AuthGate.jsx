@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { supabase, loginOptions } from "../supabase.js";
+import { ADMIN_EMAIL, supabase } from "../supabase.js";
 import { Button, Field } from "./UI.jsx";
 
 export default function AuthGate({ children }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(Boolean(supabase));
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("admin");
+  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   useEffect(() => {
@@ -50,14 +51,18 @@ export default function AuthGate({ children }) {
     setBusy(true);
     setMessage("");
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: loginOptions(),
+      if (username.trim().toLowerCase() !== "admin") {
+        setMessage("Der Benutzername oder das Passwort ist nicht korrekt.");
+        return;
+      }
+      const { error } = await supabase.auth.signInWithPassword({
+        email: ADMIN_EMAIL,
+        password,
       });
       setMessage(
         error
-          ? "Link konnte nicht gesendet werden. Prüfe deine Einladung oder versuche es später erneut."
-          : "Wenn deine E-Mail freigeschaltet ist, erhältst du einen Anmeldelink. Öffne ihn zum Anmelden.",
+          ? "Der Benutzername oder das Passwort ist nicht korrekt."
+          : "Anmeldung erfolgreich.",
       );
     } catch {
       setMessage("Keine Verbindung. Bitte später erneut versuchen.");
@@ -86,21 +91,29 @@ export default function AuthGate({ children }) {
         ) : (
           <>
             <p>
-              Melde dich mit deiner eingeladenen Team-E-Mail an. Du erhältst
-              einen Link und brauchst kein Passwort.
+              Melde dich mit dem gemeinsamen Teamzugang an.
             </p>
             <form onSubmit={submit}>
-              <Field label="E-Mail">
+              <Field label="Benutzername">
                 <input
-                  type="email"
                   required
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="username"
+                  maxLength={50}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                />
+              </Field>
+              <Field label="Passwort">
+                <input
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                 />
               </Field>
               <Button type="submit" disabled={busy}>
-                {busy ? "Wird gesendet …" : "Anmeldelink senden"}
+                {busy ? "Wird angemeldet …" : "Anmelden"}
               </Button>
             </form>
             {message && <p role="status">{message}</p>}

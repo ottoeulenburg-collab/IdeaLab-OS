@@ -29,8 +29,7 @@ npm run preview
 1. Auf [Supabase](https://supabase.com/dashboard) ein Projekt anlegen, Region wählen und Datenbankpasswort sicher aufbewahren.
 2. Im SQL Editor den vollständigen Inhalt von `supabase/migrations/202610290001_team_workspace.sql` einmal ausführen. Alternativ mit der Supabase CLI ausrollen. Die Migration erzeugt einen leeren Arbeitsbereich, Mitgliedschaften und vier Datentabellen samt RLS, RPCs und Realtime. Keine zusätzlichen öffentlichen Policies oder Schreibrechte einrichten.
 3. Unter Authentication → URL Configuration die produktive Vercel-Adresse als **Site URL** eintragen. Unter **Redirect URLs** die genaue Adresse mit abschließendem `/` sowie für lokale Entwicklung `http://127.0.0.1:5173/` erlauben. Bei Unterpfaden den vollständigen Pfad eintragen. Nur eigene vertrauenswürdige Domains freigeben.
-4. Den E-Mail-Provider aktivieren und öffentliche Neuregistrierung deaktivieren. Die App nutzt zusätzlich `shouldCreateUser: false`. Für echte Team-E-Mails unter Authentication eigenen SMTP-Versand konfigurieren; der Supabase-Standardversand ist eingeschränkt. Siehe [SMTP-Dokumentation](https://supabase.com/docs/guides/auth/auth-smtp).
-5. Standard-E-Mail-Templates für Magic Link und Einladung mit `{{ .ConfirmationURL }}` verwenden. Die App verarbeitet den Session-Redirect automatisch.
+4. Unter Authentication → Providers → Email den Provider aktivieren. Die App verwendet E-Mail/Passwort; Magic Links und Einladungs-E-Mails sind dafür nicht erforderlich.
 6. Unter Project Settings → API den Projekt-URL und **öffentlichen anon-Key** kopieren und in `.env.local` eintragen:
 
 ```dotenv
@@ -40,23 +39,28 @@ VITE_SUPABASE_ANON_KEY=DEIN_OEFFENTLICHER_ANON_KEY
 
 Keine Service-Role-, Secret- oder Datenbank-Schlüssel im Frontend oder Git speichern. Vite baut die zwei öffentlichen Werte ins Browser-Bundle ein; Zugriffsschutz liegt in Auth, Mitgliedschaften und RLS. `.env*` ist bis auf `.env.example` ignoriert. Ohne Konfiguration erscheint eine Einrichtungsmeldung, ohne Login werden keine Teamdaten geladen.
 
-## Teammitglieder freischalten
+## Gemeinsamen Admin-Zugang anlegen
 
-Für Otto und jedes weitere Mitglied:
+Die Login-Maske verwendet den Benutzernamen `admin`. Supabase verlangt intern trotzdem eine E-Mail-Adresse. Lege daher in Supabase unter Authentication → Users → **Add user** genau diesen Zugang an:
 
-1. In Supabase unter Authentication → Users → Invite user die betreffende E-Mail einladen. Die Einladung führt zur konfigurierten Site URL. Einen vorhandenen Nutzer nicht erneut anlegen.
-2. Im SQL Editor die E-Mail unten ersetzen und die Mitgliedschaft hinzufügen:
+| Feld | Wert |
+| --- | --- |
+| E-Mail | `admin@idealab.local` |
+| Passwort | `orgatechfickt` |
+| Auto Confirm User | aktivieren |
+
+Danach im SQL Editor diese Mitgliedschaft ausführen:
 
 ```sql
 insert into public.event_members(user_id, workspace_id)
 select id, '11111111-1111-4111-8111-111111111111'::uuid
-from auth.users where lower(email) = lower('TEAMMITGLIED@BEISPIEL.DE')
+from auth.users where lower(email) = lower('admin@idealab.local')
 on conflict(user_id) do nothing;
 ```
 
-3. Prüfen, dass die Mitgliedschaft besteht. Vercel-Link weitergeben. Die Person öffnet den Einladungslink oder fordert auf der Login-Seite einen neuen Magic Link an.
+Danach können alle Teammitglieder denselben Vercel-Link und diesen Zugang nutzen. Für echte individuelle Teamkonten sollte später auf eigene E-Mail-Konten und Rollen umgestellt werden.
 
-Eine Auth-Einladung allein erteilt keine Datenrechte. Erst `event_members` schaltet den Arbeitsbereich frei. Alle Mitglieder können gemeinsame Inhalte bearbeiten; Mitgliedschaften werden ausschließlich im Supabase-Dashboard/SQL Editor verwaltet. Zugriff entziehen:
+Erst `event_members` schaltet den Arbeitsbereich frei. Alle Mitglieder können gemeinsame Inhalte bearbeiten. Zugriff für ein späteres individuelles Konto entziehen:
 
 ```sql
 delete from public.event_members
@@ -65,13 +69,22 @@ where user_id in (select id from auth.users where lower(email)=lower('TEAMMITGLI
 
 Die Datenbank verweigert weitere Zugriffe sofort. Die App überprüft den Zugriff spätestens beim regelmäßigen Abgleich (15 Sekunden) und entfernt nicht mehr lesbare Teamdaten aus der Ansicht.
 
+## SQL-Migration im Supabase-Dashboard
+
+1. Öffne dein Supabase-Projekt und wähle links **SQL Editor**.
+2. Klicke **New query**.
+3. Öffne im Repository die Datei `supabase/migrations/202610290001_team_workspace.sql`, kopiere ihren gesamten Inhalt hinein und klicke **Run**.
+4. Warte auf die Erfolgsmeldung. Danach führe direkt darunter den SQL-Block aus dem Abschnitt „Gemeinsamen Admin-Zugang anlegen“ aus.
+
+Die Migration kann nur einmal auf einem neuen Projekt ausgeführt werden. Falls sie wegen bereits vorhandener Tabellen fehlschlägt, nicht erneut kopieren, sondern zuerst die Fehlermeldung prüfen.
+
 ## Vercel veröffentlichen
 
 1. Änderungen prüfen, committen und zu GitHub pushen. Das Repository enthält den Unterordner `idealab-event-command-center`.
 2. In Vercel das bestehende Projekt öffnen. **Root Directory:** `idealab-event-command-center`, Framework: Vite, Node: 24, Build Command: `npm run build`, Output Directory: `dist`.
 3. Unter Settings → Environment Variables `VITE_SUPABASE_URL` und `VITE_SUPABASE_ANON_KEY` für benötigte Umgebungen eintragen. Für Preview-Deployments müssen deren Redirect-Adressen ausdrücklich in Supabase erlaubt sein. Für Entwicklung vorzugsweise ein getrenntes Supabase-Projekt verwenden.
 4. Neu deployen. Änderungen an Vite-Variablen erfordern einen neuen Build. `vite preview` ist nur zur lokalen Kontrolle bestimmt.
-5. Endgültige Domain mit Supabase Site URL und Redirect URLs abgleichen. Mit zwei eingeladenen Teamkonten prüfen: Aufgabe anlegen, auf dem zweiten Gerät sehen, dort abhaken, auf dem ersten Gerät prüfen. Abmelden und im privaten Fenster prüfen, dass keine Teamdaten angezeigt werden.
+5. Mit zwei Browserfenstern prüfen: Aufgabe anlegen, im zweiten Fenster sehen und abhaken. Abmelden und im privaten Fenster prüfen, dass keine Teamdaten angezeigt werden.
 
 Ein Push allein richtet Supabase nicht ein. Vor diesen Schritten zeigt das Deployment die Einrichtungsmeldung.
 
@@ -103,4 +116,4 @@ IdeaLab!-Farben: `#1e1e1e`, `#9e68fa`, `#35ab32`, `#FFFFFF`. Coolvetica bleibt b
 
 Equipment-QR-Codes werden lokal erzeugt. Direktlinks öffnen den gemeinsamen Datensatz nach Anmeldung; Text-QR-Codes enthalten den Stand zum Druckzeitpunkt.
 
-Offizielle Grundlagen: [Magic Links](https://supabase.com/docs/guides/auth/auth-email-passwordless), [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security), [Postgres Changes](https://supabase.com/docs/guides/realtime/postgres-changes).
+Offizielle Grundlagen: [E-Mail/Passwort-Login](https://supabase.com/docs/guides/auth/passwords), [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security), [Postgres Changes](https://supabase.com/docs/guides/realtime/postgres-changes).

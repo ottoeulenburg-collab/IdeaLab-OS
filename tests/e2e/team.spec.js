@@ -4,13 +4,13 @@ import { createInitialData } from "../../src/data.js";
 const fakeClient = `
 let authListener;
 const session = { user: { id: 'test-user', email: 'otto@team.test' } };
-export const loginOptions = () => ({ shouldCreateUser:false, emailRedirectTo:location.origin+'/' });
+export const ADMIN_EMAIL = 'admin@idealab.local';
 window.__login = () => { localStorage.setItem('test-session','1'); authListener('SIGNED_IN',session); };
 export const supabase = {
   auth: {
     getSession: async () => ({data:{session:localStorage.getItem('test-session') ? session : null}}),
     onAuthStateChange: fn => { authListener=fn; return {data:{subscription:{unsubscribe(){}}}}; },
-    signInWithOtp: async args => { window.__loginArgs=args; return {error:null}; },
+    signInWithPassword: async args => { window.__loginArgs=args; return {error: args.email === ADMIN_EMAIL && args.password === 'orgatechfickt' ? null : {message:'invalid'}}; },
     signOut: async () => { localStorage.removeItem('test-session'); authListener('SIGNED_OUT',null); return {}; }
   },
   rpc: async (name,args) => {
@@ -62,12 +62,10 @@ test("login, migration, shared updates, stale edit, reload and logout on desktop
     page.getByRole("heading", { name: "Gemeinsam wird’s ein Event." }),
   ).toBeVisible();
   await page.screenshot({ path: "/tmp/idealab-team-login.png" });
-  await page.getByLabel("E-Mail").fill("otto@team.test");
-  await page.getByRole("button", { name: "Anmeldelink senden" }).click();
-  await expect(page.getByRole("status")).toContainText("Anmeldelink");
-  expect(
-    await page.evaluate(() => window.__loginArgs.options.shouldCreateUser),
-  ).toBe(false);
+  await page.getByLabel("Passwort").fill("orgatechfickt");
+  await page.getByRole("button", { name: "Anmelden" }).click();
+  await expect(page.getByRole("status")).toContainText("Anmeldung erfolgreich");
+  expect(await page.evaluate(() => window.__loginArgs.email)).toBe("admin@idealab.local");
   const local = createInitialData();
   local.tasks.push({
     id: "old-id",
