@@ -4,7 +4,7 @@ React/Vite-Team-App mit Supabase Auth, PostgreSQL und Realtime. Aufgaben mit Lis
 
 ## Lokal entwickeln
 
-Node 24 verwenden, Befehle im Ordner `idealab-event-command-center` ausführen:
+Node 24 verwenden, Befehle im Repository-Hauptordner ausführen:
 
 ```sh
 npm ci
@@ -80,8 +80,8 @@ Die Migration kann nur einmal auf einem neuen Projekt ausgeführt werden. Falls 
 
 ## Vercel veröffentlichen
 
-1. Änderungen prüfen, committen und zu GitHub pushen. Das Repository enthält den Unterordner `idealab-event-command-center`.
-2. In Vercel das bestehende Projekt öffnen. **Root Directory:** `idealab-event-command-center`, Framework: Vite, Node: 24, Build Command: `npm run build`, Output Directory: `dist`.
+1. Änderungen prüfen, committen und zu GitHub pushen. Die App liegt im Repository-Hauptordner.
+2. In Vercel das bestehende Projekt öffnen. **Root Directory:** leer lassen, Framework: Vite, Node: 24, Build Command: `npm run build`, Output Directory: `dist`.
 3. Unter Settings → Environment Variables `VITE_SUPABASE_URL` und `VITE_SUPABASE_ANON_KEY` für benötigte Umgebungen eintragen. Für Preview-Deployments müssen deren Redirect-Adressen ausdrücklich in Supabase erlaubt sein. Für Entwicklung vorzugsweise ein getrenntes Supabase-Projekt verwenden.
 4. Neu deployen. Änderungen an Vite-Variablen erfordern einen neuen Build. `vite preview` ist nur zur lokalen Kontrolle bestimmt.
 5. Mit zwei Browserfenstern prüfen: Aufgabe anlegen, im zweiten Fenster sehen und abhaken. Abmelden und im privaten Fenster prüfen, dass keine Teamdaten angezeigt werden.
