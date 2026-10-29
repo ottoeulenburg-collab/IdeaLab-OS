@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.DS_Store
+.env
+.env.*
+!.env.example
+test-results/
+playwright-report/
+# Older local copy retained outside the repository tree after the GitHub upload.
+idealab-event-command-center/
