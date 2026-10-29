@@ -4,6 +4,7 @@ import { Field, FormActions, Modal } from "./UI.jsx";
 
 import AssignmentFields from "./AssignmentFields.jsx";
 export default function TaskForm({ task, store, onClose, initialDue }) {
+  const [baseline] = useState(() => task || null);
   const [form, setForm] = useState(
     task || {
       id: uid(),
@@ -17,14 +18,18 @@ export default function TaskForm({ task, store, onClose, initialDue }) {
   );
   const change = (key) => (e) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault();
     if (
-      store.upsert("tasks", {
-        ...form,
-        title: form.title.trim(),
-        owner: form.owner.trim(),
-      })
+      await store.upsert(
+        "tasks",
+        {
+          ...form,
+          title: form.title.trim(),
+          owner: form.owner.trim(),
+        },
+        baseline,
+      )
     )
       onClose();
   }

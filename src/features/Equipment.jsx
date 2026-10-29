@@ -183,7 +183,7 @@ export default function Equipment({
                           )
                         ) {
                           if (
-                            store.remove("equipment", item.id) &&
+                            (await store.remove("equipment", item.id)) &&
                             selectedId === item.id
                           )
                             onCloseItem();

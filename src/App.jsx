@@ -1,5 +1,8 @@
 import React, { Suspense, lazy, useEffect, useRef, useState } from "react";
-import { useEventStore, validData } from "./store.js";
+import { validData } from "./store.js";
+import { useCloudStore } from "./cloud-store.js";
+import AuthGate from "./components/AuthGate.jsx";
+import { supabase } from "./supabase.js";
 import { downloadData } from "./utils.js";
 import { Button, Icon, useConfirm } from "./components/UI.jsx";
 import TaskForm from "./components/TaskForm.jsx";
@@ -61,8 +64,15 @@ const NAV = [
 ];
 
 export default function App() {
+  return (
+    <AuthGate>
+      {(session) => <EventApp key={session.user.id} session={session} />}
+    </AuthGate>
+  );
+}
+function EventApp({ session }) {
   const confirm = useConfirm();
-  const store = useEventStore();
+  const store = useCloudStore(session);
   const [page, setPage] = useState(() =>
       equipmentIdFromHash(window.location.hash) ? "equipment" : "dashboard",
     ),
@@ -148,10 +158,10 @@ export default function App() {
         throw new Error("invalid");
       if (
         await confirm(
-          "Dieses Backup ersetzt den aktuellen Stand. Möchtest du es wiederherstellen?",
+          "Dieses Backup ersetzt den gemeinsamen Stand für ALLE Teammitglieder. Möchtest du es wiederherstellen?",
         )
       ) {
-        if (store.commit(parsed.data)) {
+        if (await store.commit(parsed.data)) {
           setNotice("Backup wiederhergestellt.");
           navigate("dashboard");
         }
@@ -161,6 +171,10 @@ export default function App() {
         "Das ist kein gültiges IdeaLab-Backup. Deine aktuellen Daten wurden nicht verändert.",
       );
     }
+  }
+  async function signOut() {
+    const { error } = await supabase.auth.signOut({ scope: "local" });
+    if (error) setNotice("Abmelden fehlgeschlagen. Bitte erneut versuchen.");
   }
   return (
     <div className="app-shell">
@@ -192,8 +206,10 @@ export default function App() {
         <div className="sidebar-footer">
           <p>
             <span className="saved-dot" />
-            Lokal gespeichert
+            {store.busy ? "Wird gespeichert …" : store.sync}
           </p>
+          <small className="session-email">{session.user.email}</small>
+          <button onClick={signOut}>Abmelden</button>
           <button
             onClick={() => {
               downloadData(store.data);
@@ -212,10 +228,48 @@ export default function App() {
       </aside>
       <main id="main" className="main">
         <p className="storage-notice">
-          Nur in diesem Browser gespeichert · Keine Synchronisierung zwischen
-          Geräten oder Teammitgliedern. Sichere deinen Stand über „Daten
-          exportieren“.
+          Gemeinsamer IdeaLab!-Arbeitsbereich ·{" "}
+          {store.busy ? "Wird gespeichert …" : store.sync}
         </p>
+        <div className="mobile-account">
+          <span>{session.user.email}</span>
+          <button onClick={signOut}>Abmelden</button>
+        </div>
+        {store.loading ? <p role="status">Teamdaten werden geladen …</p> : null}
+        {store.localData ? (
+          <section className="notice local-migration">
+            <p>
+              In diesem Browser liegen bisherige lokale Daten. Du kannst sie
+              einmalig in einen noch unbenutzten Team-Arbeitsbereich übernehmen.
+              Dein lokales Original bleibt erhalten. Sichere es vorab als
+              Backup.
+            </p>
+            <Button onClick={() => downloadData(store.localData)}>
+              Lokales Backup sichern
+            </Button>
+            <Button
+              disabled={store.busy || store.loading || store.revision !== 0}
+              onClick={async () => {
+                if (
+                  await confirm(
+                    "Lokale Daten für alle Teammitglieder in den leeren Arbeitsbereich übernehmen?",
+                  )
+                )
+                  await store.migrateLocal();
+              }}
+            >
+              Lokale Daten übernehmen
+            </Button>
+            <button onClick={store.dismissLocal}>Später</button>
+            {store.revision !== 0 && (
+              <small>
+                Der Arbeitsbereich wird bereits verwendet. Eine Übernahme ist
+                nur in einen unbenutzten Arbeitsbereich möglich. Backups können
+                nach Prüfung weiterhin importiert werden.
+              </small>
+            )}
+          </section>
+        ) : null}
         <div className="mobile-brand">
           IdeaLab<span>!</span>
           <small>Event Command Center</small>
@@ -227,7 +281,11 @@ export default function App() {
             </h1>
             <p>{current.subtitle}</p>
           </div>
-          <Button icon="plus" onClick={create}>
+          <Button
+            icon="plus"
+            onClick={create}
+            disabled={store.loading || store.busy || store.revision < 0}
+          >
             {current.action}
           </Button>
         </header>
@@ -235,9 +293,10 @@ export default function App() {
           <div role="alert" className="notice error">
             <Icon name="alert" />
             {store.error}
+            <button onClick={store.refresh}>Erneut laden</button>
           </div>
         ) : null}
-        {page === "dashboard" ? (
+        {!store.loading && store.revision >= 0 && page === "dashboard" ? (
           <Dashboard
             createTask={create}
             store={store}
@@ -246,7 +305,7 @@ export default function App() {
             now={now}
           />
         ) : null}
-        {page === "tasks" ? (
+        {!store.loading && store.revision >= 0 && page === "tasks" ? (
           <Tasks
             key={taskFilter}
             store={store}
@@ -255,21 +314,21 @@ export default function App() {
             initialFilter={taskFilter}
           />
         ) : null}
-        {page === "contacts" ? (
+        {!store.loading && store.revision >= 0 && page === "contacts" ? (
           <Contacts
             store={store}
             creating={creating}
             onCreated={() => setCreating(false)}
           />
         ) : null}
-        {page === "budget" ? (
+        {!store.loading && store.revision >= 0 && page === "budget" ? (
           <Budget
             store={store}
             creating={creating}
             onCreated={() => setCreating(false)}
           />
         ) : null}
-        {page === "equipment" ? (
+        {!store.loading && store.revision >= 0 && page === "equipment" ? (
           <Suspense
             fallback={
               <div className="panel" role="status">
@@ -313,7 +372,7 @@ export default function App() {
         hidden
         onChange={importData}
       />
-      {newTask || taskEditor ? (
+      {store.revision >= 0 && (newTask || taskEditor) ? (
         <TaskForm
           task={taskEditor}
           initialDue={taskDate}

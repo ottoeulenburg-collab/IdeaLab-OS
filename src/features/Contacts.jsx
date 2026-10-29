@@ -14,6 +14,7 @@ import {
 import { AssignmentSelect } from "../components/AssignmentFields.jsx";
 const ROLES = ["Speaker", "Dienstleister", "Location", "Team"];
 function ContactForm({ contact, store, onClose }) {
+  const [baseline] = useState(() => (contact?.id ? contact : null));
   const [form, setForm] = useState({
     id: uid(),
     name: "",
@@ -34,12 +35,12 @@ function ContactForm({ contact, store, onClose }) {
       onClose={onClose}
     >
       <form
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
           const trimmed = Object.fromEntries(
             Object.entries(form).map(([k, v]) => [k, v.trim()]),
           );
-          if (store.upsert("contacts", trimmed)) onClose();
+          if (await store.upsert("contacts", trimmed, baseline)) onClose();
         }}
       >
         <Field label="Name">

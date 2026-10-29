@@ -1,5 +1,3 @@
-import { useState } from "react";
-import { createInitialData } from "./data.js";
 import { migrateTask } from "./assignment.js";
 import { validEquipmentItem } from "./equipment.js";
 
@@ -107,64 +105,4 @@ export function normalizeData(data) {
       ...contact,
     })),
   };
-}
-function read() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { data: createInitialData(), error: "" };
-    const parsed = JSON.parse(raw);
-    if (parsed.version !== 1 || !validData(parsed.data))
-      throw new Error("schema");
-    return { data: normalizeData(parsed.data), error: "" };
-  } catch {
-    return {
-      data: createInitialData(),
-      error:
-        "Die gespeicherten Daten konnten nicht gelesen werden. Eine leere Ansicht ist geöffnet. Die gespeicherten Rohdaten bleiben erhalten; bitte sichere oder repariere sie vor weiteren Änderungen.",
-    };
-  }
-}
-export function useEventStore() {
-  const [state, setState] = useState(read);
-  function commit(next) {
-    if (state.error.includes("Rohdaten") || !validData(next)) return false;
-    try {
-      const normalized = normalizeData(next);
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ version: 1, data: normalized }),
-      );
-      setState({ data: normalized, error: "" });
-      return true;
-    } catch {
-      setState((s) => ({
-        ...s,
-        error:
-          "Speichern fehlgeschlagen. Dein Browser-Speicher ist voll oder gesperrt. Die Änderung wurde nicht übernommen; exportiere zur Sicherheit deinen bisherigen Stand.",
-      }));
-      return false;
-    }
-  }
-  function upsert(key, item) {
-    const list = state.data[key];
-    return commit({
-      ...state.data,
-      [key]: list.some((x) => x.id === item.id)
-        ? list.map((x) => (x.id === item.id ? item : x))
-        : [...list, item],
-    });
-  }
-  function remove(key, id) {
-    const next = {
-      ...state.data,
-      [key]: state.data[key].filter((x) => x.id !== id),
-    };
-    if (key === "people")
-      next.shifts = next.shifts.map((s) => ({
-        ...s,
-        personIds: s.personIds.filter((p) => p !== id),
-      }));
-    return commit(next);
-  }
-  return { data: state.data, error: state.error, commit, upsert, remove };
 }

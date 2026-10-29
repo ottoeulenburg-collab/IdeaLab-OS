@@ -12,6 +12,9 @@ import {
 } from "../components/UI.jsx";
 
 function ExpenseForm({ expense, store, onClose }) {
+  const [baseline] = useState(
+    () => store.data.expenses.find((x) => x.id === expense?.id) || null,
+  );
   const [form, setForm] = useState(
     expense || { id: uid(), category: "", planned: "", actual: "", note: "" },
   );
@@ -25,16 +28,20 @@ function ExpenseForm({ expense, store, onClose }) {
       onClose={onClose}
     >
       <form
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
           if (
-            store.upsert("expenses", {
-              ...form,
-              category: form.category.trim(),
-              note: form.note.trim(),
-              planned: Number(form.planned),
-              actual: Number(form.actual),
-            })
+            await store.upsert(
+              "expenses",
+              {
+                ...form,
+                category: form.category.trim(),
+                note: form.note.trim(),
+                planned: Number(form.planned),
+                actual: Number(form.actual),
+              },
+              baseline,
+            )
           )
             onClose();
         }}
@@ -92,6 +99,7 @@ export default function Budget({ store, creating, onCreated }) {
   const confirm = useConfirm();
   const [editor, setEditor] = useState(null),
     [budgetOpen, setBudgetOpen] = useState(false),
+    [budgetRevision, setBudgetRevision] = useState(store.revision),
     [totalInput, setTotalInput] = useState(store.data.event.budget);
   const { expenses, event } = store.data,
     planned = sumMoney(expenses, "planned"),
@@ -132,6 +140,7 @@ export default function Budget({ store, creating, onCreated }) {
           icon="edit"
           onClick={() => {
             setTotalInput(event.budget);
+            setBudgetRevision(store.revision);
             setBudgetOpen(true);
           }}
         >
@@ -261,13 +270,17 @@ export default function Budget({ store, creating, onCreated }) {
       {budgetOpen ? (
         <Modal title="Gesamtbudget ändern" onClose={() => setBudgetOpen(false)}>
           <form
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
               if (
-                store.commit({
-                  ...store.data,
-                  event: { ...event, budget: Number(totalInput) },
-                })
+                await store.commit(
+                  {
+                    ...store.data,
+                    event: { ...event, budget: Number(totalInput) },
+                  },
+                  false,
+                  budgetRevision,
+                )
               )
                 setBudgetOpen(false);
             }}

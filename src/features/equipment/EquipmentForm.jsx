@@ -11,6 +11,7 @@ import { Field, FormActions, Modal } from "../../components/UI.jsx";
 
 import { AssignmentSelect } from "../../components/AssignmentFields.jsx";
 export default function EquipmentForm({ item, store, onClose }) {
+  const [baseline] = useState(() => item || null);
   const [form, setForm] = useState(() => item || newEquipment());
   const [error, setError] = useState("");
   const change = (key) => (event) => {
@@ -21,7 +22,7 @@ export default function EquipmentForm({ item, store, onClose }) {
     }));
     setError("");
   };
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault();
     const cleaned = {
       ...form,
@@ -56,10 +57,10 @@ export default function EquipmentForm({ item, store, onClose }) {
       );
       return;
     }
-    if (store.upsert("equipment", cleaned)) onClose();
+    if (await store.upsert("equipment", cleaned, baseline)) onClose();
     else
       setError(
-        "Der Eintrag konnte nicht gespeichert werden. Bitte prüfe den verfügbaren Browser-Speicher.",
+        "Der Eintrag konnte nicht gespeichert werden. Bitte prüfe die Verbindung und lade den Teamstand neu.",
       );
   }
   return (
