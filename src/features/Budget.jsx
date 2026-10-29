@@ -1,6 +1,11 @@
 import React, { useState } from "react";
 import { money, sumMoney, uid } from "../utils.js";
 import {
+  amountRecorded,
+  saveBudgetAmount,
+  clearBudgetAmount,
+} from "../budget.js";
+import {
   Button,
   Empty,
   Field,
@@ -11,20 +16,30 @@ import {
   useConfirm,
 } from "../components/UI.jsx";
 
-function ExpenseForm({ expense, store, onClose }) {
+function ExpenseForm({ expense, store, onClose, mode }) {
   const [baseline] = useState(
     () => store.data.expenses.find((x) => x.id === expense?.id) || null,
   );
   const [form, setForm] = useState(
-    expense || { id: uid(), category: "", planned: "", actual: "", note: "" },
+    expense || {
+      id: uid(),
+      category: "",
+      planned: 0,
+      actual: 0,
+      plannedRecorded: false,
+      actualRecorded: false,
+      note: "",
+    },
   );
+  const [amount, setAmount] = useState(() =>
+    expense && amountRecorded(expense, mode) ? expense[mode] : "",
+  );
+  const label = mode === "planned" ? "Planbetrag" : "Tatsächliche Ausgabe";
   const change = (key) => (e) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
   return (
     <Modal
-      title={
-        expense?.category ? "Budgetposten bearbeiten" : "Budgetposten erstellen"
-      }
+      title={`${label} ${expense?.category ? "bearbeiten" : "erfassen"}`}
       onClose={onClose}
     >
       <form
@@ -33,13 +48,15 @@ function ExpenseForm({ expense, store, onClose }) {
           if (
             await store.upsert(
               "expenses",
-              {
-                ...form,
-                category: form.category.trim(),
-                note: form.note.trim(),
-                planned: Number(form.planned),
-                actual: Number(form.actual),
-              },
+              saveBudgetAmount(
+                {
+                  ...form,
+                  category: form.category.trim(),
+                  note: form.note.trim(),
+                },
+                mode,
+                Number(amount),
+              ),
               baseline,
             )
           )
@@ -57,30 +74,22 @@ function ExpenseForm({ expense, store, onClose }) {
             placeholder="z. B. Catering"
           />
         </Field>
-        <div className="form-grid">
-          <Field label="Geplant (€)">
-            <input
-              type="number"
-              min="0"
-              max="1000000000"
-              step="0.01"
-              required
-              value={form.planned}
-              onChange={change("planned")}
-            />
-          </Field>
-          <Field label="Tatsächlich (€)">
-            <input
-              type="number"
-              min="0"
-              max="1000000000"
-              step="0.01"
-              required
-              value={form.actual}
-              onChange={change("actual")}
-            />
-          </Field>
-        </div>
+        <Field label={`${label} (€)`}>
+          <input
+            type="number"
+            min="0"
+            max="1000000000"
+            step="0.01"
+            required
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+        </Field>
+        <p className="form-note">
+          {mode === "planned"
+            ? "Hier planst du die Kosten. Tatsächliche Ausgaben kannst du später separat erfassen."
+            : "Hier erfasst du nur die tatsächlich angefallenen Kosten. Der Planbetrag bleibt unverändert."}
+        </p>
         <Field label="Notizen">
           <textarea
             rows="3"
@@ -97,6 +106,7 @@ function ExpenseForm({ expense, store, onClose }) {
 
 export default function Budget({ store, creating, onCreated }) {
   const confirm = useConfirm();
+  const [mode, setMode] = useState("planned");
   const [editor, setEditor] = useState(null),
     [budgetOpen, setBudgetOpen] = useState(false),
     [budgetRevision, setBudgetRevision] = useState(store.revision),
@@ -160,14 +170,61 @@ export default function Budget({ store, creating, onCreated }) {
           Gesamtbudget.
         </div>
       ) : null}
+      <div className="budget-toolbar">
+        <div className="view-switch" role="group" aria-label="Budgetansicht">
+          <button
+            type="button"
+            className={mode === "planned" ? "selected" : ""}
+            aria-pressed={mode === "planned"}
+            onClick={() => setMode("planned")}
+          >
+            Planung
+          </button>
+          <button
+            type="button"
+            className={mode === "actual" ? "selected" : ""}
+            aria-pressed={mode === "actual"}
+            onClick={() => setMode("actual")}
+          >
+            Tatsächliche Ausgaben
+          </button>
+        </div>
+        <Button
+          icon="plus"
+          onClick={() =>
+            setEditor({
+              id: uid(),
+              category: "",
+              planned: 0,
+              actual: 0,
+              plannedRecorded: false,
+              actualRecorded: false,
+              note: "",
+            })
+          }
+        >
+          {mode === "planned" ? "Planbetrag hinzufügen" : "Ausgabe hinzufügen"}
+        </Button>
+      </div>
+      <p className="page-footnote">
+        {mode === "planned"
+          ? "Plane eure Kosten unabhängig von den tatsächlichen Ausgaben."
+          : "Trage Ausgaben unabhängig ein. Bei einem geplanten Posten kannst du über den Stift die tatsächlichen Kosten ergänzen."}
+      </p>
       <div className="table-panel budget-table">
         <table>
           <thead>
             <tr>
               <th>Kategorie</th>
-              <th className="numeric">Geplant</th>
-              <th className="numeric">Tatsächlich</th>
-              <th className="numeric">Abweichung</th>
+              <th className="numeric">
+                {mode === "planned" ? "Planbetrag" : "Tatsächliche Ausgabe"}
+              </th>
+              {mode === "actual" ? (
+                <>
+                  <th className="numeric">Planbetrag</th>
+                  <th className="numeric">Abweichung</th>
+                </>
+              ) : null}
               <th>Notizen</th>
               <th>
                 <span className="sr-only">Aktionen</span>
@@ -180,19 +237,34 @@ export default function Budget({ store, creating, onCreated }) {
                 <td data-label="Kategorie">
                   <strong>{e.category}</strong>
                 </td>
-                <td data-label="Geplant" className="numeric">
-                  {money(e.planned)}
-                </td>
-                <td data-label="Tatsächlich" className="numeric">
-                  <strong>{money(e.actual)}</strong>
-                </td>
                 <td
-                  data-label="Abweichung"
-                  className={`numeric ${e.actual > e.planned ? "orange" : "green"}`}
+                  data-label={
+                    mode === "planned" ? "Planbetrag" : "Tatsächliche Ausgabe"
+                  }
+                  className="numeric"
                 >
-                  {e.actual > e.planned ? "+" : ""}
-                  {money(Math.round((e.actual - e.planned) * 100) / 100)}
+                  {amountRecorded(e, mode) ? (
+                    <strong>{money(e[mode])}</strong>
+                  ) : (
+                    <span className="muted">Noch nicht erfasst</span>
+                  )}
                 </td>
+                {mode === "actual" ? (
+                  <>
+                    <td data-label="Planbetrag" className="numeric">
+                      {amountRecorded(e, "planned") ? money(e.planned) : "–"}
+                    </td>
+                    <td
+                      data-label="Abweichung"
+                      className={`numeric ${e.actual > e.planned ? "orange" : "green"}`}
+                    >
+                      {amountRecorded(e, "planned") &&
+                      amountRecorded(e, "actual")
+                        ? `${e.actual > e.planned ? "+" : ""}${money(Math.round((e.actual - e.planned) * 100) / 100)}`
+                        : "–"}
+                    </td>
+                  </>
+                ) : null}
                 <td data-label="Notizen" className="muted budget-note">
                   {e.note || "–"}
                 </td>
@@ -200,19 +272,28 @@ export default function Budget({ store, creating, onCreated }) {
                   <div className="row-actions">
                     <IconButton
                       icon="edit"
-                      label={`Budgetposten bearbeiten: ${e.category}`}
+                      label={`${mode === "planned" ? "Planbetrag" : "Ausgabe"} bearbeiten: ${e.category}`}
                       onClick={() => setEditor(e)}
                     />
-                    <IconButton
-                      icon="trash"
-                      label={`Budgetposten löschen: ${e.category}`}
-                      onClick={async () => {
-                        if (
-                          await confirm(`Budgetposten „${e.category}“ löschen?`)
-                        )
-                          store.remove("expenses", e.id);
-                      }}
-                    />
+                    {amountRecorded(e, mode) ||
+                    (!amountRecorded(e, "planned") &&
+                      !amountRecorded(e, "actual")) ? (
+                      <IconButton
+                        icon="trash"
+                        label={`${mode === "planned" ? "Planbetrag" : "Ausgabe"} löschen: ${e.category}`}
+                        onClick={async () => {
+                          if (
+                            await confirm(
+                              `${mode === "planned" ? "Planbetrag" : "Tatsächliche Ausgabe"} für „${e.category}“ löschen? Ein Betrag in der anderen Ansicht bleibt erhalten.`,
+                            )
+                          ) {
+                            const next = clearBudgetAmount(e, mode);
+                            if (next) await store.upsert("expenses", next, e);
+                            else await store.remove("expenses", e.id);
+                          }
+                        }}
+                      />
+                    ) : null}
                   </div>
                 </td>
               </tr>
@@ -221,44 +302,77 @@ export default function Budget({ store, creating, onCreated }) {
           <tfoot>
             <tr>
               <td>Gesamt</td>
-              <td className="numeric">{money(planned)}</td>
-              <td className="numeric">{money(actual)}</td>
               <td
-                className={`numeric ${actual > planned ? "orange" : "green"}`}
+                className="numeric"
+                data-summary={
+                  mode === "planned" ? "Planbetrag" : "Tatsächliche Ausgabe"
+                }
               >
-                {actual > planned ? "+" : ""}
-                {money(Math.round((actual - planned) * 100) / 100)}
+                {money(mode === "planned" ? planned : actual)}
               </td>
+              {mode === "actual" ? (
+                <>
+                  <td className="numeric" data-summary="Planbetrag">
+                    {money(planned)}
+                  </td>
+                  <td
+                    className={`numeric ${actual > planned ? "orange" : "green"}`}
+                    data-summary="Abweichung"
+                  >
+                    {expenses.length &&
+                    expenses.every(
+                      (e) =>
+                        amountRecorded(e, "planned") &&
+                        amountRecorded(e, "actual"),
+                    )
+                      ? `${actual > planned ? "+" : ""}${money(Math.round((actual - planned) * 100) / 100)}`
+                      : "–"}
+                  </td>
+                </>
+              ) : null}
               <td colSpan="2" />
             </tr>
           </tfoot>
         </table>
         {!expenses.length ? (
-          <Empty title="Dein Budget beginnt hier">
-            Lege den ersten Budgetposten an.
+          <Empty
+            title={
+              mode === "planned"
+                ? "Deine Budgetplanung beginnt hier"
+                : "Noch keine Ausgaben erfasst"
+            }
+          >
+            {mode === "planned"
+              ? "Lege deinen ersten Planbetrag an."
+              : "Erfasse eine Ausgabe – auch ohne vorherige Planung."}
             <Button
               onClick={() =>
                 setEditor({
                   id: uid(),
                   category: "",
-                  planned: "",
-                  actual: "",
+                  planned: 0,
+                  actual: 0,
+                  plannedRecorded: false,
+                  actualRecorded: false,
                   note: "",
                 })
               }
             >
-              Budgetposten hinzufügen
+              {mode === "planned"
+                ? "Ersten Planbetrag hinzufügen"
+                : "Erste Ausgabe hinzufügen"}
             </Button>
           </Empty>
         ) : null}
       </div>
       <p className="page-footnote">
-        Abweichung = tatsächliche minus geplante Ausgaben. Negative Werte liegen
-        unter der Planung. Restbudget = Gesamtbudget minus tatsächliche
-        Ausgaben.
+        Nicht erfasste Beträge sind mit „Noch nicht erfasst“ markiert und zählen
+        nicht als Ausgabe. Abweichungen werden erst gezeigt, wenn beide Beträge
+        erfasst sind. Restbudget = Gesamtbudget minus tatsächliche Ausgaben.
       </p>
       {creating || editor ? (
         <ExpenseForm
+          mode={mode}
           expense={editor}
           store={store}
           onClose={() => {

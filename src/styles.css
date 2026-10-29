@@ -2484,29 +2484,16 @@ td strong {
     font-size: 15px;
     margin-bottom: 4px;
   }
-  .budget-table tfoot td:nth-child(2):before {
-    content: "Geplant";
+  .budget-table tfoot td[data-summary]:before {
+    content: attr(data-summary);
     display: block;
     color: var(--muted);
     font-size: 10px;
     font-weight: 400;
     margin-bottom: 3px;
   }
-  .budget-table tfoot td:nth-child(3):before {
-    content: "Tatsächlich";
-    display: block;
-    color: var(--muted);
-    font-size: 10px;
-    font-weight: 400;
-    margin-bottom: 3px;
-  }
-  .budget-table tfoot td:nth-child(4):before {
-    content: "Abweichung";
-    display: block;
-    color: var(--muted);
-    font-size: 10px;
-    font-weight: 400;
-    margin-bottom: 3px;
+  .budget-table tfoot td[colspan] {
+    display: none;
   }
   .main-footer {
     font-size: 10px;
@@ -2656,4 +2643,22 @@ td strong {
 button:disabled {
   opacity: 0.55;
   cursor: wait;
+}
+.budget-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+@media (max-width: 600px) {
+  .budget-toolbar .view-switch {
+    width: 100%;
+  }
+  .budget-toolbar .view-switch button {
+    flex: 1;
+    justify-content: center;
+    padding: 10px 8px;
+  }
 }

@@ -96,6 +96,10 @@ Liegt der alte Stand auf einer anderen Domain oder localhost, dort vor dem Wechs
 
 ## Synchronisierung und Konflikte
 
+Im Budget-Reiter wechseln „Planung“ und „Tatsächliche Ausgaben“ zwischen getrennten Eingaben. Ein Formular verlangt jeweils nur einen Betrag; eine tatsächliche Ausgabe kann auch ohne Planung angelegt werden. Für einen bereits geplanten Posten in der Ausgabenansicht den Stift verwenden, um die Ist-Kosten zu ergänzen. Die andere Betragsseite bleibt beim Bearbeiten und Löschen erhalten. Gesamtbudget, Plansumme, tatsächliche Ausgaben und Restbudget bleiben gemeinsam sichtbar.
+
+Noch nicht erfasste Beträge werden ausdrücklich gekennzeichnet. Neue optionale `plannedRecorded`-/`actualRecorded`-Felder unterscheiden diese von ausdrücklich erfassten 0 €. Bei alten Posten werden unveränderte Nullwerte als noch nicht erfasst angezeigt; positive Beträge bleiben erfasst. Alte Backups bleiben lesbar. Einzelabweichungen erscheinen nur für beidseitig erfasste Posten, die Gesamtabweichung erst bei vollständiger Erfassung aller Posten. Keine neue SQL-Migration nötig: Die Kennzeichen bleiben im bestehenden JSON-Datenmodell.
+
 Die Sammlungen liegen in eigenen Tabellen mit dem bestehenden JSON-Datenmodell pro Eintrag. Eventbudget und alter Checklisten-/Schichtbestand liegen in Workspace-Metadaten. Workspace, Aufgaben-Status/Fälligkeit und Equipment-Status sind indiziert; Inventarnummern sind pro Workspace eindeutig.
 
 Schreibvorgänge laufen über einen RPC mit Mitgliedschaftsprüfung, Transaktion und Revisionsvergleich. Gleichzeitige Änderungen führen zu einer Meldung und laden den aktuellen Stand. Offene Formulare prüfen zusätzlich, ob ihr Eintrag inzwischen geändert oder gelöscht wurde. Dann das Formular schließen, den aktuellen Eintrag erneut öffnen und die Änderung prüfen.

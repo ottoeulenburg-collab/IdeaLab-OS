@@ -65,7 +65,9 @@ test("login, migration, shared updates, stale edit, reload and logout on desktop
   await page.getByLabel("Passwort").fill("orgatechfickt");
   await page.getByRole("button", { name: "Anmelden" }).click();
   await expect(page.getByRole("status")).toContainText("Anmeldung erfolgreich");
-  expect(await page.evaluate(() => window.__loginArgs.email)).toBe("admin@idealab.local");
+  expect(await page.evaluate(() => window.__loginArgs.email)).toBe(
+    "admin@idealab.local",
+  );
   const local = createInitialData();
   local.tasks.push({
     id: "old-id",
@@ -156,11 +158,76 @@ test("login, migration, shared updates, stale edit, reload and logout on desktop
     .getByRole("button", { name: "Budgetposten erstellen", exact: true })
     .click();
   await page.getByLabel("Kategorie", { exact: true }).fill("Miete");
-  await page.getByLabel("Geplant (€)").fill("100");
-  await page.getByLabel("Tatsächlich (€)").fill("90");
+  await expect(page.getByLabel("Tatsächliche Ausgabe (€)")).toHaveCount(0);
+  await page.getByLabel("Planbetrag (€)").fill("100");
+  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(snapshot.data.expenses[0].planned).toBe(100);
+  expect(snapshot.data.expenses[0].actualRecorded).toBe(false);
+  await page
+    .getByRole("button", { name: "Tatsächliche Ausgaben", exact: true })
+    .click();
+  await expect(
+    page.getByText("Noch nicht erfasst", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Ausgabe bearbeiten: Miete", exact: true })
+    .click();
+  await expect(page.getByLabel("Planbetrag (€)")).toHaveCount(0);
+  await page.getByLabel("Tatsächliche Ausgabe (€)").fill("90");
   await page.getByRole("button", { name: "Speichern", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(snapshot.data.expenses[0].actual).toBe(90);
+  expect(snapshot.data.expenses[0].planned).toBe(100);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({
+    path: "/tmp/idealab-budget-actual-desktop.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({
+    path: "/tmp/idealab-budget-actual-mobile.png",
+    fullPage: true,
+  });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    390,
+  );
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page
+    .getByRole("button", { name: "Ausgabe löschen: Miete", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Bestätigen", exact: true }).click();
+  await expect(
+    page.getByText("Noch nicht erfasst", { exact: true }),
+  ).toBeVisible();
+  expect(snapshot.data.expenses[0].planned).toBe(100);
+  expect(snapshot.data.expenses[0].actual).toBe(0);
+  await page
+    .getByRole("button", { name: "Ausgabe hinzufügen", exact: true })
+    .click();
+  await page.getByLabel("Kategorie", { exact: true }).fill("Spontankauf");
+  await page.getByLabel("Tatsächliche Ausgabe (€)").fill("20");
+  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(
+    snapshot.data.expenses.find((x) => x.category === "Spontankauf")
+      .plannedRecorded,
+  ).toBe(false);
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Dein Überblick." }),
+  ).toBeVisible();
+  await nav.getByRole("button").filter({ hasText: "Budget" }).click();
+  await expect(
+    page.getByRole("button", {
+      name: "Planbetrag bearbeiten: Miete",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "/tmp/idealab-budget-plan-desktop.png",
+    fullPage: true,
+  });
   await nav.getByRole("button").filter({ hasText: "Equipment" }).click();
   await page
     .getByRole("button", { name: "Equipment erstellen", exact: true })

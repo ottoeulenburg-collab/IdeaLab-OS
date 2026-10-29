@@ -74,7 +74,13 @@ export function validData(d) {
         string(x.category) &&
         string(x.note) &&
         nonnegative(x.planned) &&
-        nonnegative(x.actual),
+        nonnegative(x.actual) &&
+        ["planned", "actual"].every(
+          (field) =>
+            x[`${field}Recorded`] === undefined ||
+            (typeof x[`${field}Recorded`] === "boolean" &&
+              (x[`${field}Recorded`] || x[field] === 0)),
+        ),
     )
   )
     return false;
